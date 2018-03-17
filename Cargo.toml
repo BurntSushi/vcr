@@ -1,0 +1,10 @@
+[package]
+name = "vcr"
+version = "0.1.0"
+authors = ["Andrew Gallant <jamslam@gmail.com>"]
+
+[dependencies]
+clap = "2"
+failure = "0.1"
+lazy_static = "1"
+regex = "0.2"
