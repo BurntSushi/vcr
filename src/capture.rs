@@ -120,12 +120,7 @@ impl InitialRecording {
             cmd.arg("-t").arg(duration);
         }
         cmd.arg(&output);
-        eprintln!("[VCR COMMAND] {:?}", cmd);
-
-        let status = cmd.status()?;
-        if !status.success() {
-            bail!("command exited with code {:?}", status.code());
-        }
+        run_command(&mut cmd)?;
         Ok(InitialRecording(output))
     }
 
@@ -150,13 +145,7 @@ impl InitialRecording {
             cmd.arg("-i").arg(&self.0)
                 .arg("-codec").arg("copy")
                 .arg(&output_path);
-            eprintln!("[VCR COMMAND] {:?}", cmd);
-            eprintln!("[VCR OUTPUT TO] {:?}", output_path);
-
-            let status = cmd.status()?;
-            if !status.success() {
-                bail!("command exited with code {:?}", status.code());
-            }
+            run_command(&mut cmd)?;
             return Ok(TrimmedRecording(output_path));
         } else if blues.0.len() > 1 {
             // Something went wrong. There's probably heuristics we can use
@@ -169,13 +158,7 @@ impl InitialRecording {
         cmd.arg("-t").arg((blues.0[0].start + 5.0).to_string())
             .arg("-i").arg(&self.0)
             .arg(&output_path);
-        eprintln!("[VCR COMMAND] {:?}", cmd);
-        eprintln!("[VCR OUTPUT TO] {:?}", output_path);
-
-        let status = cmd.status()?;
-        if !status.success() {
-            bail!("command exited with code {:?}", status.code());
-        }
+        run_command(&mut cmd)?;
         Ok(TrimmedRecording(output_path))
     }
 }
@@ -211,13 +194,7 @@ impl BlueDetect {
                 .arg("-f").arg("null")
                 .arg("-");
             cmd.stdout(output.try_clone()?).stderr(output.try_clone()?);
-            eprintln!("[VCR COMMAND] {:?}", cmd);
-            eprintln!("[VCR OUTPUT TO] {:?}", output_path);
-
-            let status = cmd.status()?;
-            if !status.success() {
-                bail!("command exited with code {:?}", status.code());
-            }
+            run_command(&mut cmd)?;
         }
 
         let mut intervals = vec![];
@@ -260,4 +237,25 @@ impl BlueInterval  {
             duration: caps["duration"].parse()?,
         }))
     }
+}
+
+/// Runs a command in a standardized fashion:
+///
+/// 1. Prints the command to stderr.
+/// 2. If the command exits unsuccessfully, return an error.
+/// 3. One exception: if the command was sent SIGTERM, then assume everything
+///    is probably still OK.
+/// 4. On success, return nothing.
+fn run_command(cmd: &mut Command) -> Result<()> {
+    eprintln!("[VCR COMMAND] {:?}", cmd);
+    let status = cmd.status()?;
+    if !status.success() {
+        if status.code() == Some(255) {
+            // This appears to be ffmpeg's behavior when it gets SIGTERM'd.
+            // ffmpeg will gracefully shutdown, so we should mush on.
+            return Ok(());
+        }
+        bail!("command exited with code {:?}", status.code());
+    }
+    Ok(())
 }
