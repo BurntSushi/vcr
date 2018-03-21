@@ -146,20 +146,23 @@ impl InitialRecording {
                 .arg("-codec").arg("copy")
                 .arg(&output_path);
             run_command(&mut cmd)?;
-            return Ok(TrimmedRecording(output_path));
+            Ok(TrimmedRecording(output_path))
         } else if blues.0.len() > 1 {
             // Something went wrong. There's probably heuristics we can use
-            // here, but we need real use cases first.
-            bail!("expected at most one long blue frame interval, \
-                   but found: {:?}", blues);
+            // here, but let's just do the final transcode. That way, we can
+            // just manually slice it very quickly using `-codec copy`.
+            let mut cmd = Command::new("ffmpeg");
+            cmd.arg("-i").arg(&self.0).arg(&output_path);
+            run_command(&mut cmd)?;
+            Ok(TrimmedRecording(output_path))
+        } else {
+            let mut cmd = Command::new("ffmpeg");
+            cmd.arg("-t").arg((blues.0[0].start + 5.0).to_string())
+                .arg("-i").arg(&self.0)
+                .arg(&output_path);
+            run_command(&mut cmd)?;
+            Ok(TrimmedRecording(output_path))
         }
-
-        let mut cmd = Command::new("ffmpeg");
-        cmd.arg("-t").arg((blues.0[0].start + 5.0).to_string())
-            .arg("-i").arg(&self.0)
-            .arg(&output_path);
-        run_command(&mut cmd)?;
-        Ok(TrimmedRecording(output_path))
     }
 }
 
